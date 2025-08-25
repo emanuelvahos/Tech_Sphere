@@ -70,6 +70,27 @@ pip install -r requirements.txt
 python src/main.py
 ```
 
+### Cómo Usar los Modelos
+
+Se han implementado varias formas de interactuar con los modelos entrenados:
+
+1. **Línea de comandos**: Prueba rápida con textos individuales
+   ```bash
+   python src/models/test_model.py
+   ```
+
+2. **Evaluación de modelos**: Evaluación completa con conjuntos de datos
+   ```bash
+   python src/models/evaluate_model.py
+   ```
+
+3. **Aplicación web**: Interfaz gráfica amigable
+   ```bash
+   python src/app.py
+   ```
+
+Para más detalles, consulta la [guía completa de uso de modelos](docs/como_usar_modelos.md).
+
 ## Pruebas Automatizadas
 
 Este proyecto utiliza GitHub Actions para ejecutar pruebas automatizadas en cada push y pull request:
