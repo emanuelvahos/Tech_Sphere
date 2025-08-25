@@ -1,5 +1,10 @@
 # Clasificación de Literatura Médica
 
+[![Python Tests](https://github.com/tu-usuario/Tech_Sphere/actions/workflows/python-tests.yml/badge.svg)](https://github.com/tu-usuario/Tech_Sphere/actions/workflows/python-tests.yml)
+[![codecov](https://codecov.io/gh/tu-usuario/Tech_Sphere/branch/main/graph/badge.svg)](https://codecov.io/gh/tu-usuario/Tech_Sphere)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Version](https://img.shields.io/github/v/release/tu-usuario/Tech_Sphere?include_prereleases&sort=semver)](https://github.com/tu-usuario/Tech_Sphere/releases)
+
 ## Descripción del Proyecto
 Este proyecto implementa un sistema de clasificación multi-etiqueta para literatura médica, capaz de categorizar artículos científicos en diferentes dominios médicos basándose en su título y resumen. El sistema está diseñado para el AI + Data Challenge, con el objetivo de clasificar textos médicos en una o más categorías de forma precisa y eficiente.
 
@@ -48,6 +53,43 @@ El dataset contiene información de literatura médica con las siguientes column
 - Grupo: Categoría(s) a la(s) que pertenece el artículo (separadas por '|')
 
 El conjunto de datos contiene 3,565 registros y presenta un desafío de clasificación multi-etiqueta, donde cada documento puede pertenecer a una o más categorías médicas.
+
+## Instalación y Uso
+
+```bash
+# Clonar el repositorio
+git clone https://github.com/tu-usuario/Tech_Sphere.git
+cd Tech_Sphere
+
+# Crear entorno virtual e instalar dependencias
+python -m venv venv
+source venv/bin/activate  # En Windows: venv\Scripts\activate
+pip install -r requirements.txt
+
+# Ejecutar el pipeline completo
+python src/main.py
+```
+
+## Pruebas Automatizadas
+
+Este proyecto utiliza GitHub Actions para ejecutar pruebas automatizadas en cada push y pull request:
+
+```bash
+# Ejecutar pruebas localmente
+pytest --cov=src/ tests/
+```
+
+## Releases
+
+El proyecto sigue el [Versionado Semántico](https://semver.org/lang/es/). Para más información sobre el proceso de releases, consulta [RELEASE.md](RELEASE.md).
+
+## Contribución
+
+¡Las contribuciones son bienvenidas! Por favor, lee [CONTRIBUTING.md](CONTRIBUTING.md) para obtener detalles sobre nuestro código de conducta y el proceso para enviarnos pull requests.
+
+## Licencia
+
+Este proyecto está licenciado bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) para más detalles.
 
 ### Análisis Exploratorio
 Del análisis exploratorio realizado, se destacan los siguientes hallazgos:
