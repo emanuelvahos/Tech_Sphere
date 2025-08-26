@@ -85,7 +85,6 @@ Tech_Sphere/
 ## Contacto
 
 Si tienes preguntas o necesitas ayuda, puedes contactar al equipo de mantenimiento a través de:
-- Issues de GitHub
-- [Correo electrónico del equipo]
+- Email: emmanuelvahos@gmail.com
 
 ¡Gracias por contribuir a mejorar la clasificación de literatura médica!

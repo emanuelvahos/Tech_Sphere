@@ -70,26 +70,50 @@ pip install -r requirements.txt
 python src/main.py
 ```
 
+### Modelos Entrenados
+
+Se han entrenado tres tipos de modelos para la clasificación multi-etiqueta:
+
+1. **SVM (Support Vector Machine)**: El mejor modelo según la evaluación, con un F1-score micro de 0.79.
+2. **Regresión Logística**: Buen equilibrio entre rendimiento y velocidad, con un F1-score micro de 0.76.
+3. **Random Forest**: Modelo más robusto pero con menor rendimiento, con un F1-score micro de 0.68.
+
+#### Métricas de Evaluación
+
+| Modelo                      | F1 (micro) | F1 (macro) | Precisión | Recall |
+|----------------------------|------------|------------|-----------|--------|
+| logistic_regression_model.pkl | 0.7614     | 0.7098     | 0.9485    | 0.6360 |
+| random_forest_model.pkl    | 0.6762     | 0.5939     | 0.8377    | 0.5669 |
+| svm_model.pkl              | 0.7931     | 0.7768     | 0.9726    | 0.6695 |
+
 ### Cómo Usar los Modelos
 
 Se han implementado varias formas de interactuar con los modelos entrenados:
 
-1. **Línea de comandos**: Prueba rápida con textos individuales
+1. **Aplicación web de demostración**: Interfaz gráfica amigable
+   ```bash
+   python app_demo.py
+   ```
+   Luego abra un navegador y vaya a `http://127.0.0.1:5000`
+
+2. **Scripts de demostración**: Prueba rápida con textos predefinidos
+   ```bash
+   python demo_modelo.py  # Demostración simple con un modelo
+   python demo_basico.py  # Demostración básica con evaluación y visualizaciones
+   python probar_modelos.py  # Prueba de todos los modelos
+   ```
+
+3. **Evaluación de modelos**: Evaluación completa con conjuntos de datos
+   ```bash
+   python evaluar_modelos.py
+   ```
+
+4. **Línea de comandos original**: Prueba con la implementación original
    ```bash
    python src/models/test_model.py
    ```
 
-2. **Evaluación de modelos**: Evaluación completa con conjuntos de datos
-   ```bash
-   python src/models/evaluate_model.py
-   ```
-
-3. **Aplicación web**: Interfaz gráfica amigable
-   ```bash
-   python src/app.py
-   ```
-
-Para más detalles, consulta la [guía completa de uso de modelos](docs/como_usar_modelos.md).
+Para más detalles, consulta la [guía completa de uso de modelos](docs/como_usar_modelos.md) y la [documentación de scripts de demostración](docs/scripts_demo.md).
 
 ## Pruebas Automatizadas
 

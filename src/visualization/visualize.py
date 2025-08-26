@@ -1,519 +1,1122 @@
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-Módulo para la visualización de resultados de los modelos de clasificación.
 
-Este módulo contiene funciones para generar visualizaciones de los resultados
-de los modelos de clasificación multi-etiqueta para literatura médica.
 """
+Visualizaciones avanzadas e interactivas para análisis de resultados de modelos de clasificación multi-etiqueta.
+
+Este módulo proporciona funciones para visualizar los resultados de modelos de clasificación
+multi-etiqueta, incluyendo matrices de confusión, métricas por etiqueta, comparaciones
+de métricas entre modelos, y visualizaciones interactivas para análisis exploratorio.
+"""
+
+import os
+import pickle
+from typing import Dict, List, Tuple, Any, Optional, Union
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 import seaborn as sns
-import os
-import pickle
-from typing import Dict, List, Tuple, Any, Optional, Union
+import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from sklearn.metrics import confusion_matrix
-import itertools
+from sklearn.manifold import TSNE
+from sklearn.decomposition import PCA
+from wordcloud import WordCloud
+import networkx as nx
+from collections import Counter
+import re
+from nltk.util import ngrams
 
-# Configuración de estilo para las visualizaciones
-plt.style.use('seaborn-v0_8-whitegrid')
-sns.set_palette('viridis')
 
-
-def plot_confusion_matrix(cm: np.ndarray, classes: List[str], normalize: bool = False,
-                        title: str = 'Matriz de Confusión', cmap: Any = plt.cm.Blues,
-                        figsize: Tuple[int, int] = (8, 6)) -> plt.Figure:
+def plot_confusion_matrix(y_true: np.ndarray, y_pred: np.ndarray, 
+                         labels: List[str] = None, normalize: bool = False,
+                         title: str = 'Matriz de Confusión', 
+                         cmap: str = 'Blues',
+                         figsize: Tuple[int, int] = (10, 8),
+                         interactive: bool = False) -> Union[plt.Figure, go.Figure]:
     """
-    Genera una visualización de la matriz de confusión.
+    Genera una matriz de confusión para cada etiqueta en un problema de clasificación multi-etiqueta.
     
     Args:
-        cm: Matriz de confusión.
-        classes: Nombres de las clases.
-        normalize: Si se debe normalizar la matriz.
-        title: Título del gráfico.
-        cmap: Mapa de colores.
-        figsize: Tamaño de la figura.
+        y_true: Etiquetas verdaderas (one-hot encoding)
+        y_pred: Etiquetas predichas (one-hot encoding)
+        labels: Nombres de las etiquetas
+        normalize: Si es True, normaliza los valores
+        title: Título del gráfico
+        cmap: Mapa de colores para la matriz
+        figsize: Tamaño de la figura
+        interactive: Si es True, genera una visualización interactiva con Plotly
         
     Returns:
-        Figura de matplotlib.
+        Figura de matplotlib o figura de Plotly (si interactive=True)
     """
-    if normalize:
-        cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
-        fmt = '.2f'
+    if interactive:
+        # Crear una figura interactiva con Plotly
+        n_labels = y_true.shape[1]
+        fig = make_subplots(rows=int(np.ceil(n_labels/3)), cols=min(n_labels, 3),
+                           subplot_titles=[labels[i] if labels else f"Label {i}" for i in range(n_labels)])
+        
+        # Crear una matriz de confusión para cada etiqueta
+        for i in range(n_labels):
+            cm = confusion_matrix(y_true[:, i], y_pred[:, i])
+            if normalize:
+                cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+                cm = np.round(cm, 2)
+            
+            # Calcular posición en la cuadrícula
+            row = i // 3 + 1
+            col = i % 3 + 1
+            
+            # Crear heatmap
+            heatmap = go.Heatmap(
+                z=cm,
+                x=['Negativo', 'Positivo'],
+                y=['Negativo', 'Positivo'],
+                colorscale=cmap.lower(),
+                showscale=False,
+                text=[[str(cm[i][j]) for j in range(2)] for i in range(2)],
+                hoverinfo='text'
+            )
+            
+            fig.add_trace(heatmap, row=row, col=col)
+            
+            # Configurar ejes
+            fig.update_xaxes(title_text="Predicho", row=row, col=col)
+            fig.update_yaxes(title_text="Real", row=row, col=col)
+        
+        # Ajustar diseño
+        fig.update_layout(
+            title_text=title,
+            height=300 * int(np.ceil(n_labels/3)),
+            width=900,
+            showlegend=False
+        )
+        
+        return fig
     else:
-        fmt = 'd'
-    
-    fig, ax = plt.subplots(figsize=figsize)
-    sns.heatmap(cm, annot=True, fmt=fmt, cmap=cmap, cbar=True,
-                xticklabels=classes, yticklabels=classes, ax=ax)
-    
-    ax.set_xlabel('Predicción')
-    ax.set_ylabel('Valor Real')
-    ax.set_title(title)
-    plt.tight_layout()
-    
-    return fig
+        # Versión estática con Matplotlib
+        n_labels = y_true.shape[1]
+        n_cols = min(3, n_labels)
+        n_rows = int(np.ceil(n_labels / n_cols))
+        
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize)
+        if n_labels == 1:
+            axes = np.array([axes])
+        axes = axes.flatten()
+        
+        for i in range(n_labels):
+            cm = confusion_matrix(y_true[:, i], y_pred[:, i])
+            if normalize:
+                cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+                cm = np.round(cm, 2)
+            
+            sns.heatmap(cm, annot=True, fmt='.2f' if normalize else 'd',
+                      cmap=cmap, ax=axes[i], cbar=False)
+            
+            axes[i].set_title(labels[i] if labels else f"Label {i}")
+            axes[i].set_xlabel('Predicho')
+            axes[i].set_ylabel('Real')
+            axes[i].set_xticklabels(['Negativo', 'Positivo'])
+            axes[i].set_yticklabels(['Negativo', 'Positivo'])
+        
+        # Ocultar ejes no utilizados
+        for i in range(n_labels, len(axes)):
+            axes[i].axis('off')
+        
+        plt.suptitle(title)
+        plt.tight_layout(rect=[0, 0, 1, 0.95])
+        
+        return fig
 
 
 def plot_metrics_comparison(metrics_dict: Dict[str, Dict[str, float]], 
-                          metric_name: str = 'f1_weighted',
-                          title: str = 'Comparación de F1 Ponderado',
-                          figsize: Tuple[int, int] = (10, 6)) -> plt.Figure:
+                           title: str = 'Comparación de Métricas entre Modelos',
+                           figsize: Tuple[int, int] = (12, 6)) -> plt.Figure:
     """
-    Compara una métrica específica entre diferentes modelos.
+    Compara métricas entre diferentes modelos.
     
     Args:
-        metrics_dict: Diccionario con métricas por modelo.
-        metric_name: Nombre de la métrica a comparar.
-        title: Título del gráfico.
-        figsize: Tamaño de la figura.
+        metrics_dict: Diccionario con métricas por modelo
+                     {nombre_modelo: {métrica: valor, ...}, ...}
+        title: Título del gráfico
+        figsize: Tamaño de la figura
         
     Returns:
-        Figura de matplotlib.
+        Figura de matplotlib
     """
     models = list(metrics_dict.keys())
-    values = [metrics[metric_name] for metrics in metrics_dict.values()]
+    metrics = list(metrics_dict[models[0]].keys())
     
     fig, ax = plt.subplots(figsize=figsize)
-    bars = ax.bar(models, values, color=sns.color_palette('viridis', len(models)))
     
-    # Añadir etiquetas con valores
-    for bar in bars:
-        height = bar.get_height()
-        ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
-                f'{height:.4f}', ha='center', va='bottom', fontsize=10)
+    x = np.arange(len(metrics))
+    width = 0.8 / len(models)
     
-    ax.set_ylim(0, max(values) * 1.15)  # Dar espacio para las etiquetas
-    ax.set_xlabel('Modelo')
-    ax.set_ylabel(metric_name)
+    for i, model in enumerate(models):
+        values = [metrics_dict[model][metric] for metric in metrics]
+        ax.bar(x + i * width - width * (len(models) - 1) / 2, values, width, label=model)
+    
     ax.set_title(title)
-    plt.xticks(rotation=45)
+    ax.set_xticks(x)
+    ax.set_xticklabels(metrics)
+    ax.set_ylim(0, 1.0)
+    ax.set_ylabel('Valor')
+    ax.legend()
+    ax.grid(axis='y', linestyle='--', alpha=0.7)
+    
     plt.tight_layout()
     
     return fig
 
 
 def plot_per_label_metrics(per_label_metrics: Dict[str, Dict[str, float]],
-                          metric_name: str = 'f1',
-                          title: str = 'F1-Score por Categoría',
-                          figsize: Tuple[int, int] = (10, 6)) -> plt.Figure:
+                          title: str = 'Métricas por Etiqueta',
+                          figsize: Tuple[int, int] = (14, 8)) -> plt.Figure:
     """
-    Visualiza una métrica específica para cada etiqueta.
+    Visualiza métricas para cada etiqueta.
     
     Args:
-        per_label_metrics: Métricas por etiqueta.
-        metric_name: Nombre de la métrica a visualizar.
-        title: Título del gráfico.
-        figsize: Tamaño de la figura.
+        per_label_metrics: Diccionario con métricas por etiqueta
+                          {etiqueta: {métrica: valor, ...}, ...}
+        title: Título del gráfico
+        figsize: Tamaño de la figura
         
     Returns:
-        Figura de matplotlib.
+        Figura de matplotlib
     """
     labels = list(per_label_metrics.keys())
-    values = [metrics[metric_name] for metrics in per_label_metrics.values()]
+    metrics = list(per_label_metrics[labels[0]].keys())
     
     fig, ax = plt.subplots(figsize=figsize)
-    bars = ax.bar(labels, values, color=sns.color_palette('viridis', len(labels)))
     
-    # Añadir etiquetas con valores
-    for bar in bars:
-        height = bar.get_height()
-        ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
-                f'{height:.4f}', ha='center', va='bottom', fontsize=10)
+    x = np.arange(len(labels))
+    width = 0.8 / len(metrics)
     
-    ax.set_ylim(0, max(values) * 1.15)  # Dar espacio para las etiquetas
-    ax.set_xlabel('Categoría')
-    ax.set_ylabel(metric_name)
+    for i, metric in enumerate(metrics):
+        values = [per_label_metrics[label][metric] for label in labels]
+        ax.bar(x + i * width - width * (len(metrics) - 1) / 2, values, width, label=metric)
+    
     ax.set_title(title)
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels, rotation=45, ha='right')
+    ax.set_ylim(0, 1.0)
+    ax.set_ylabel('Valor')
+    ax.legend()
+    ax.grid(axis='y', linestyle='--', alpha=0.7)
+    
     plt.tight_layout()
     
     return fig
 
 
-def plot_metrics_radar(metrics: Dict[str, float], 
-                     metrics_to_plot: List[str] = None,
-                     title: str = 'Métricas del Modelo',
-                     figsize: Tuple[int, int] = (10, 8)) -> plt.Figure:
+def plot_metrics_radar(metrics_dict: Dict[str, Dict[str, float]],
+                      title: str = 'Comparación de Modelos',
+                      figsize: Tuple[int, int] = (10, 10)) -> plt.Figure:
     """
-    Genera un gráfico de radar para visualizar múltiples métricas.
+    Genera un gráfico de radar para comparar métricas entre diferentes modelos.
     
     Args:
-        metrics: Diccionario con métricas.
-        metrics_to_plot: Lista de métricas a incluir.
-        title: Título del gráfico.
-        figsize: Tamaño de la figura.
+        metrics_dict: Diccionario con métricas por modelo
+                     {nombre_modelo: {métrica: valor, ...}, ...}
+        title: Título del gráfico
+        figsize: Tamaño de la figura
         
     Returns:
-        Figura de matplotlib.
+        Figura de matplotlib
     """
-    if metrics_to_plot is None:
-        metrics_to_plot = ['precision_weighted', 'recall_weighted', 'f1_weighted', 
-                          'accuracy', 'jaccard_weighted']
-    
-    # Filtrar métricas disponibles
-    metrics_to_plot = [m for m in metrics_to_plot if m in metrics]
-    
-    # Obtener valores
-    values = [metrics[m] for m in metrics_to_plot]
+    models = list(metrics_dict.keys())
+    metrics = list(metrics_dict[models[0]].keys())
     
     # Número de variables
-    N = len(metrics_to_plot)
+    N = len(metrics)
     
     # Ángulos para cada eje
     angles = [n / float(N) * 2 * np.pi for n in range(N)]
     angles += angles[:1]  # Cerrar el polígono
     
-    # Valores para cada eje
-    values += values[:1]  # Cerrar el polígono
-    
     # Crear figura
     fig, ax = plt.subplots(figsize=figsize, subplot_kw=dict(polar=True))
     
-    # Dibujar polígono
-    ax.plot(angles, values, linewidth=2, linestyle='solid')
-    ax.fill(angles, values, alpha=0.25)
+    # Añadir cada modelo
+    for model in models:
+        values = [metrics_dict[model][metric] for metric in metrics]
+        values += values[:1]  # Cerrar el polígono
+        
+        ax.plot(angles, values, linewidth=2, label=model)
+        ax.fill(angles, values, alpha=0.1)
     
-    # Etiquetas
+    # Configurar ejes y etiquetas
     ax.set_xticks(angles[:-1])
-    ax.set_xticklabels(metrics_to_plot)
-    
-    # Ajustar límites del eje y
+    ax.set_xticklabels(metrics)
+    ax.set_yticklabels([])
     ax.set_ylim(0, 1)
     
-    # Añadir título
-    plt.title(title, size=15, y=1.1)
+    # Añadir título y leyenda
+    plt.title(title)
+    plt.legend(loc='upper right', bbox_to_anchor=(0.1, 0.1))
     
     return fig
 
 
-def plot_label_distribution(y: np.ndarray, label_names: List[str],
-                          title: str = 'Distribución de Etiquetas',
-                          figsize: Tuple[int, int] = (10, 6)) -> plt.Figure:
+def plot_label_distribution(y: np.ndarray, labels: List[str] = None,
+                           title: str = 'Distribución de Etiquetas',
+                           figsize: Tuple[int, int] = (12, 6)) -> plt.Figure:
     """
     Visualiza la distribución de etiquetas en el conjunto de datos.
     
     Args:
-        y: Matriz de etiquetas.
-        label_names: Nombres de las etiquetas.
-        title: Título del gráfico.
-        figsize: Tamaño de la figura.
+        y: Matriz de etiquetas (one-hot encoding)
+        labels: Nombres de las etiquetas
+        title: Título del gráfico
+        figsize: Tamaño de la figura
         
     Returns:
-        Figura de matplotlib.
+        Figura de matplotlib
     """
+    if labels is None:
+        labels = [f"Label {i}" for i in range(y.shape[1])]
+    
     # Contar ocurrencias de cada etiqueta
     label_counts = y.sum(axis=0)
     
+    # Crear figura
     fig, ax = plt.subplots(figsize=figsize)
-    bars = ax.bar(label_names, label_counts, color=sns.color_palette('viridis', len(label_names)))
     
-    # Añadir etiquetas con valores
-    for bar in bars:
-        height = bar.get_height()
-        ax.text(bar.get_x() + bar.get_width()/2., height + 0.5,
-                f'{int(height)}', ha='center', va='bottom', fontsize=10)
+    # Graficar barras
+    ax.bar(labels, label_counts)
     
-    ax.set_xlabel('Categoría')
-    ax.set_ylabel('Número de Documentos')
+    # Configurar gráfico
     ax.set_title(title)
+    ax.set_xlabel('Etiquetas')
+    ax.set_ylabel('Frecuencia')
+    ax.set_xticklabels(labels, rotation=45, ha='right')
+    ax.grid(axis='y', linestyle='--', alpha=0.7)
+    
     plt.tight_layout()
     
     return fig
 
 
-def plot_label_co_occurrence(y: np.ndarray, label_names: List[str],
-                           title: str = 'Matriz de Co-ocurrencia de Etiquetas',
-                           figsize: Tuple[int, int] = (10, 8)) -> plt.Figure:
+def plot_word_cloud(texts: List[str], stopwords: List[str] = None, 
+                   max_words: int = 200, background_color: str = 'white',
+                   title: str = 'Nube de Palabras', figsize: Tuple[int, int] = (12, 8),
+                   interactive: bool = False) -> Union[plt.Figure, go.Figure]:
     """
-    Visualiza la co-ocurrencia de etiquetas en el conjunto de datos.
+    Genera una nube de palabras a partir de una lista de textos.
     
     Args:
-        y: Matriz de etiquetas.
-        label_names: Nombres de las etiquetas.
-        title: Título del gráfico.
-        figsize: Tamaño de la figura.
+        texts: Lista de textos
+        stopwords: Lista de palabras a excluir
+        max_words: Número máximo de palabras a incluir
+        background_color: Color de fondo
+        title: Título del gráfico
+        figsize: Tamaño de la figura
+        interactive: Si es True, genera una visualización interactiva con Plotly
         
     Returns:
-        Figura de matplotlib.
+        Figura de matplotlib o figura de Plotly (si interactive=True)
     """
-    # Calcular matriz de co-ocurrencia
-    co_occurrence = np.zeros((len(label_names), len(label_names)))
+    # Unir todos los textos
+    text = ' '.join(texts)
     
-    for i in range(len(label_names)):
-        for j in range(len(label_names)):
-            # Contar documentos que tienen ambas etiquetas
-            co_occurrence[i, j] = np.sum(np.logical_and(y[:, i], y[:, j]))
+    # Crear nube de palabras
+    wordcloud = WordCloud(
+        max_words=max_words,
+        background_color=background_color,
+        width=800,
+        height=400,
+        stopwords=stopwords
+    ).generate(text)
     
-    fig, ax = plt.subplots(figsize=figsize)
-    sns.heatmap(co_occurrence, annot=True, fmt='d', cmap='viridis',
-               xticklabels=label_names, yticklabels=label_names, ax=ax)
+    # Obtener palabras y frecuencias
+    word_freqs = {word: freq for word, freq in wordcloud.words_.items()}
     
-    ax.set_title(title)
-    plt.tight_layout()
-    
-    return fig
+    if interactive:
+        # Crear versión interactiva con Plotly
+        words = list(word_freqs.keys())
+        freqs = list(word_freqs.values())
+        
+        # Normalizar frecuencias para tamaño de texto
+        sizes = [20 + 80 * (freq / max(freqs)) for freq in freqs]
+        
+        # Crear figura
+        fig = go.Figure()
+        
+        # Añadir palabras como anotaciones
+        for i, (word, size) in enumerate(zip(words[:100], sizes[:100])):
+            fig.add_annotation(
+                x=np.random.uniform(0, 1),
+                y=np.random.uniform(0, 1),
+                text=word,
+                showarrow=False,
+                font=dict(size=size, color=plt.cm.viridis(np.random.rand()))
+            )
+        
+        # Configurar diseño
+        fig.update_layout(
+            title=title,
+            xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+            yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+            plot_bgcolor=background_color,
+            width=figsize[0]*100,
+            height=figsize[1]*100
+        )
+        
+        return fig
+    else:
+        # Versión estática con Matplotlib
+        fig, ax = plt.subplots(figsize=figsize)
+        ax.imshow(wordcloud, interpolation='bilinear')
+        ax.axis('off')
+        ax.set_title(title)
+        plt.tight_layout()
+        
+        return fig
 
 
-def plot_learning_curve(train_sizes: np.ndarray, train_scores: np.ndarray, 
-                      test_scores: np.ndarray, title: str = 'Curva de Aprendizaje',
-                      figsize: Tuple[int, int] = (10, 6)) -> plt.Figure:
+def plot_tsne_visualization(X: np.ndarray, categories: List[str], 
+                           n_components: int = 2, perplexity: int = 30,
+                           title: str = 'Visualización t-SNE', 
+                           figsize: Tuple[int, int] = (12, 10),
+                           interactive: bool = False) -> Union[plt.Figure, go.Figure]:
     """
-    Visualiza la curva de aprendizaje de un modelo.
+    Genera una visualización t-SNE para datos de alta dimensionalidad.
     
     Args:
-        train_sizes: Tamaños de conjunto de entrenamiento.
-        train_scores: Puntuaciones en entrenamiento.
-        test_scores: Puntuaciones en prueba.
-        title: Título del gráfico.
-        figsize: Tamaño de la figura.
+        X: Matriz de características
+        categories: Lista de categorías para cada muestra
+        n_components: Número de componentes para t-SNE
+        perplexity: Perplexidad para t-SNE
+        title: Título del gráfico
+        figsize: Tamaño de la figura
+        interactive: Si es True, genera una visualización interactiva con Plotly
         
     Returns:
-        Figura de matplotlib.
+        Figura de matplotlib o figura de Plotly (si interactive=True)
+    """
+    # Aplicar t-SNE
+    tsne = TSNE(n_components=n_components, perplexity=perplexity, random_state=42)
+    X_tsne = tsne.fit_transform(X)
+    
+    # Crear DataFrame para facilitar la visualización
+    df = pd.DataFrame({
+        'x': X_tsne[:, 0],
+        'y': X_tsne[:, 1] if n_components >= 2 else np.zeros(X_tsne.shape[0]),
+        'z': X_tsne[:, 2] if n_components >= 3 else np.zeros(X_tsne.shape[0]),
+        'category': categories
+    })
+    
+    if interactive:
+        # Versión interactiva con Plotly
+        if n_components == 3:
+            fig = px.scatter_3d(
+                df, x='x', y='y', z='z',
+                color='category',
+                title=title,
+                labels={'category': 'Categoría'},
+                opacity=0.7,
+                height=figsize[1]*80,
+                width=figsize[0]*80
+            )
+        else:
+            fig = px.scatter(
+                df, x='x', y='y',
+                color='category',
+                title=title,
+                labels={'category': 'Categoría'},
+                opacity=0.7,
+                height=figsize[1]*80,
+                width=figsize[0]*80
+            )
+            
+        # Añadir filtro de categorías
+        unique_categories = df['category'].unique()
+        buttons = []
+        
+        # Botón para mostrar todas las categorías
+        buttons.append(dict(
+            label="Todas",
+            method="update",
+            args=[{"visible": [True] * len(unique_categories)}]
+        ))
+        
+        # Botones para cada categoría
+        for i, cat in enumerate(unique_categories):
+            visible = [False] * len(unique_categories)
+            visible[i] = True
+            buttons.append(dict(
+                label=cat,
+                method="update",
+                args=[{"visible": visible}]
+            ))
+        
+        # Añadir menú de filtros
+        fig.update_layout(
+            updatemenus=[dict(
+                buttons=buttons,
+                direction="down",
+                pad={"r": 10, "t": 10},
+                showactive=True,
+                x=0.1,
+                xanchor="left",
+                y=1.1,
+                yanchor="top"
+            )]
+        )
+        
+        return fig
+    else:
+        # Versión estática con Matplotlib
+        fig, ax = plt.subplots(figsize=figsize)
+        
+        # Obtener categorías únicas
+        unique_categories = np.unique(categories)
+        
+        # Crear un color para cada categoría
+        colors = plt.cm.tab20(np.linspace(0, 1, len(unique_categories)))
+        
+        # Graficar cada categoría
+        for i, category in enumerate(unique_categories):
+            mask = df['category'] == category
+            ax.scatter(df.loc[mask, 'x'], df.loc[mask, 'y'], 
+                      c=[colors[i]], label=category, alpha=0.7)
+        
+        # Configurar gráfico
+        ax.set_title(title)
+        ax.set_xlabel('Componente 1')
+        ax.set_ylabel('Componente 2')
+        ax.grid(linestyle='--', alpha=0.7)
+        
+        # Añadir leyenda (si no hay demasiadas categorías)
+        if len(unique_categories) <= 20:
+            ax.legend()
+        
+        plt.tight_layout()
+        
+        return fig
+
+
+def plot_learning_curves(train_sizes: np.ndarray, train_scores: np.ndarray, 
+                        test_scores: np.ndarray, title: str = 'Curvas de Aprendizaje',
+                        figsize: Tuple[int, int] = (10, 6),
+                        interactive: bool = False) -> Union[plt.Figure, go.Figure]:
+    """
+    Visualiza curvas de aprendizaje para evaluar el rendimiento del modelo.
+    
+    Args:
+        train_sizes: Tamaños de conjuntos de entrenamiento
+        train_scores: Puntuaciones en conjuntos de entrenamiento
+        test_scores: Puntuaciones en conjuntos de prueba
+        title: Título del gráfico
+        figsize: Tamaño de la figura
+        interactive: Si es True, genera una visualización interactiva con Plotly
+        
+    Returns:
+        Figura de matplotlib o figura de Plotly (si interactive=True)
     """
     train_mean = np.mean(train_scores, axis=1)
     train_std = np.std(train_scores, axis=1)
     test_mean = np.mean(test_scores, axis=1)
     test_std = np.std(test_scores, axis=1)
     
-    fig, ax = plt.subplots(figsize=figsize)
-    
-    # Graficar puntuaciones medias
-    ax.plot(train_sizes, train_mean, 'o-', color='r', label='Entrenamiento')
-    ax.plot(train_sizes, test_mean, 'o-', color='g', label='Validación')
-    
-    # Graficar bandas de desviación estándar
-    ax.fill_between(train_sizes, train_mean - train_std, train_mean + train_std, 
-                   alpha=0.1, color='r')
-    ax.fill_between(train_sizes, test_mean - test_std, test_mean + test_std, 
-                   alpha=0.1, color='g')
-    
-    ax.set_xlabel('Tamaño del Conjunto de Entrenamiento')
-    ax.set_ylabel('Puntuación')
-    ax.set_title(title)
-    ax.legend(loc='best')
-    plt.grid(True)
-    plt.tight_layout()
-    
-    return fig
+    if interactive:
+        # Versión interactiva con Plotly
+        fig = go.Figure()
+        
+        # Añadir curva de entrenamiento
+        fig.add_trace(go.Scatter(
+            x=train_sizes,
+            y=train_mean,
+            mode='lines+markers',
+            name='Entrenamiento',
+            line=dict(color='blue'),
+            error_y=dict(
+                type='data',
+                array=train_std,
+                visible=True,
+                color='blue'
+            )
+        ))
+        
+        # Añadir curva de prueba
+        fig.add_trace(go.Scatter(
+            x=train_sizes,
+            y=test_mean,
+            mode='lines+markers',
+            name='Validación',
+            line=dict(color='red'),
+            error_y=dict(
+                type='data',
+                array=test_std,
+                visible=True,
+                color='red'
+            )
+        ))
+        
+        # Configurar diseño
+        fig.update_layout(
+            title=title,
+            xaxis_title='Tamaño del Conjunto de Entrenamiento',
+            yaxis_title='Puntuación',
+            legend=dict(x=0.02, y=0.98),
+            template='plotly_white',
+            height=figsize[1]*80,
+            width=figsize[0]*80
+        )
+        
+        return fig
+    else:
+        # Versión estática con Matplotlib
+        fig, ax = plt.subplots(figsize=figsize)
+        
+        # Graficar curva de entrenamiento
+        ax.plot(train_sizes, train_mean, 'o-', color='blue', label='Entrenamiento')
+        ax.fill_between(train_sizes, train_mean - train_std, train_mean + train_std, 
+                       alpha=0.1, color='blue')
+        
+        # Graficar curva de prueba
+        ax.plot(train_sizes, test_mean, 'o-', color='red', label='Validación')
+        ax.fill_between(train_sizes, test_mean - test_std, test_mean + test_std, 
+                       alpha=0.1, color='red')
+        
+        # Configurar gráfico
+        ax.set_title(title)
+        ax.set_xlabel('Tamaño del Conjunto de Entrenamiento')
+        ax.set_ylabel('Puntuación')
+        ax.grid(linestyle='--', alpha=0.7)
+        ax.legend()
+        
+        plt.tight_layout()
+        
+        return fig
 
 
-def plot_feature_importance(feature_importance: np.ndarray, feature_names: List[str],
-                          top_n: int = 20, title: str = 'Importancia de Características',
-                          figsize: Tuple[int, int] = (12, 8)) -> plt.Figure:
+def plot_feature_correlation(X: pd.DataFrame, feature_names: List[str] = None,
+                            threshold: float = 0.7, title: str = 'Correlación de Características',
+                            figsize: Tuple[int, int] = (12, 10),
+                            interactive: bool = False) -> Union[plt.Figure, go.Figure]:
     """
-    Visualiza la importancia de las características.
+    Visualiza la correlación entre características.
     
     Args:
-        feature_importance: Array con importancia de características.
-        feature_names: Nombres de las características.
-        top_n: Número de características principales a mostrar.
-        title: Título del gráfico.
-        figsize: Tamaño de la figura.
+        X: DataFrame o matriz de características
+        feature_names: Nombres de las características
+        threshold: Umbral para resaltar correlaciones altas
+        title: Título del gráfico
+        figsize: Tamaño de la figura
+        interactive: Si es True, genera una visualización interactiva con Plotly
         
     Returns:
-        Figura de matplotlib.
+        Figura de matplotlib o figura de Plotly (si interactive=True)
     """
-    # Crear DataFrame para facilitar la ordenación
-    importance_df = pd.DataFrame({
-        'feature': feature_names,
-        'importance': feature_importance
-    })
+    # Convertir a DataFrame si es necesario
+    if not isinstance(X, pd.DataFrame):
+        X = pd.DataFrame(X, columns=feature_names if feature_names else 
+                        [f'Feature {i}' for i in range(X.shape[1])])
     
-    # Ordenar por importancia y seleccionar top_n
-    importance_df = importance_df.sort_values('importance', ascending=False).head(top_n)
+    # Calcular matriz de correlación
+    corr_matrix = X.corr()
     
-    fig, ax = plt.subplots(figsize=figsize)
-    sns.barplot(x='importance', y='feature', data=importance_df, ax=ax)
-    
-    ax.set_title(title)
-    ax.set_xlabel('Importancia')
-    ax.set_ylabel('Característica')
-    plt.tight_layout()
-    
-    return fig
+    if interactive:
+        # Versión interactiva con Plotly
+        mask = np.abs(corr_matrix) > threshold
+        
+        fig = px.imshow(
+            corr_matrix,
+            labels=dict(x="Características", y="Características", color="Correlación"),
+            x=corr_matrix.columns,
+            y=corr_matrix.columns,
+            color_continuous_scale='RdBu_r',
+            zmin=-1, zmax=1,
+            title=title,
+            width=figsize[0]*80,
+            height=figsize[1]*80
+        )
+        
+        # Resaltar correlaciones altas
+        annotations = []
+        for i, row in enumerate(corr_matrix.values):
+            for j, val in enumerate(row):
+                if i != j and abs(val) > threshold:
+                    annotations.append(dict(
+                        x=j, y=i,
+                        text=f"{val:.2f}",
+                        showarrow=False,
+                        font=dict(color="white" if abs(val) > 0.8 else "black")
+                    ))
+        
+        fig.update_layout(annotations=annotations)
+        
+        return fig
+    else:
+        # Versión estática con Matplotlib
+        fig, ax = plt.subplots(figsize=figsize)
+        
+        # Crear mapa de calor
+        cmap = sns.diverging_palette(220, 10, as_cmap=True)
+        mask = np.triu(np.ones_like(corr_matrix, dtype=bool))
+        
+        sns.heatmap(corr_matrix, mask=mask, cmap=cmap, vmax=1, vmin=-1, center=0,
+                   square=True, linewidths=.5, cbar_kws={"shrink": .5},
+                   annot=True, fmt='.2f', ax=ax)
+        
+        ax.set_title(title)
+        
+        plt.tight_layout()
+        
+        return fig
 
 
-def plot_roc_curve(fpr: Dict[str, np.ndarray], tpr: Dict[str, np.ndarray], 
-                 roc_auc: Dict[str, float], title: str = 'Curva ROC',
-                 figsize: Tuple[int, int] = (10, 8)) -> plt.Figure:
+def plot_text_length_distribution(text_lengths: List[int], bins: int = 30,
+                                title: str = 'Distribución de Longitud de Textos',
+                                figsize: Tuple[int, int] = (12, 6),
+                                interactive: bool = False) -> Union[plt.Figure, go.Figure]:
     """
-    Visualiza curvas ROC para clasificación multi-etiqueta.
+    Visualiza la distribución de longitudes de texto.
     
     Args:
-        fpr: Diccionario con tasas de falsos positivos por etiqueta.
-        tpr: Diccionario con tasas de verdaderos positivos por etiqueta.
-        roc_auc: Diccionario con áreas bajo la curva ROC por etiqueta.
-        title: Título del gráfico.
-        figsize: Tamaño de la figura.
+        text_lengths: Lista de longitudes de texto
+        bins: Número de bins para el histograma
+        title: Título del gráfico
+        figsize: Tamaño de la figura
+        interactive: Si es True, genera una visualización interactiva con Plotly
         
     Returns:
-        Figura de matplotlib.
+        Figura de matplotlib o figura de Plotly (si interactive=True)
     """
-    fig, ax = plt.subplots(figsize=figsize)
+    # Calcular estadísticas
+    mean_length = np.mean(text_lengths)
+    median_length = np.median(text_lengths)
+    std_length = np.std(text_lengths)
     
-    # Graficar curva ROC para cada etiqueta
-    for label, label_fpr in fpr.items():
-        if label == 'micro':
-            ax.plot(fpr[label], tpr[label], 
-                   label=f'ROC micro-promedio (AUC = {roc_auc[label]:.2f})',
-                   color='deeppink', linestyle=':', linewidth=4)
-        elif label == 'macro':
-            ax.plot(fpr[label], tpr[label],
-                   label=f'ROC macro-promedio (AUC = {roc_auc[label]:.2f})',
-                   color='navy', linestyle=':', linewidth=4)
-        else:
-            ax.plot(fpr[label], tpr[label],
-                   label=f'ROC {label} (AUC = {roc_auc[label]:.2f})')
-    
-    # Graficar línea diagonal
-    ax.plot([0, 1], [0, 1], 'k--', label='Aleatorio')
-    
-    ax.set_xlim([0.0, 1.0])
-    ax.set_ylim([0.0, 1.05])
-    ax.set_xlabel('Tasa de Falsos Positivos')
-    ax.set_ylabel('Tasa de Verdaderos Positivos')
-    ax.set_title(title)
-    ax.legend(loc='lower right')
-    plt.grid(True, alpha=0.3)
-    plt.tight_layout()
-    
-    return fig
+    if interactive:
+        # Versión interactiva con Plotly
+        fig = go.Figure()
+        
+        # Añadir histograma
+        fig.add_trace(go.Histogram(
+            x=text_lengths,
+            nbinsx=bins,
+            name='Frecuencia',
+            opacity=0.7
+        ))
+        
+        # Añadir línea de densidad
+        hist_data, bin_edges = np.histogram(text_lengths, bins=bins, density=True)
+        bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+        
+        fig.add_trace(go.Scatter(
+            x=bin_centers,
+            y=hist_data,
+            mode='lines',
+            name='Densidad',
+            line=dict(color='red', width=2)
+        ))
+        
+        # Añadir líneas para estadísticas
+        fig.add_vline(x=mean_length, line_dash="dash", line_color="green",
+                     annotation_text=f"Media: {mean_length:.1f}")
+        fig.add_vline(x=median_length, line_dash="dash", line_color="blue",
+                     annotation_text=f"Mediana: {median_length:.1f}")
+        
+        # Configurar diseño
+        fig.update_layout(
+            title=title,
+            xaxis_title='Longitud del Texto',
+            yaxis_title='Frecuencia',
+            template='plotly_white',
+            height=figsize[1]*80,
+            width=figsize[0]*80,
+            annotations=[
+                dict(
+                    x=0.02, y=0.95,
+                    xref="paper", yref="paper",
+                    text=f"Desviación Estándar: {std_length:.1f}",
+                    showarrow=False,
+                    bgcolor="rgba(255, 255, 255, 0.8)"
+                )
+            ]
+        )
+        
+        return fig
+    else:
+        # Versión estática con Matplotlib
+        fig, ax = plt.subplots(figsize=figsize)
+        
+        # Crear histograma
+        n, bins, patches = ax.hist(text_lengths, bins=bins, alpha=0.7, density=True)
+        
+        # Añadir línea de densidad
+        density = sns.kdeplot(text_lengths, ax=ax, color='red')
+        
+        # Añadir líneas para estadísticas
+        ax.axvline(mean_length, color='green', linestyle='dashed', linewidth=1,
+                  label=f'Media: {mean_length:.1f}')
+        ax.axvline(median_length, color='blue', linestyle='dashed', linewidth=1,
+                  label=f'Mediana: {median_length:.1f}')
+        
+        # Configurar gráfico
+        ax.set_title(title)
+        ax.set_xlabel('Longitud del Texto')
+        ax.set_ylabel('Densidad')
+        ax.text(0.02, 0.95, f'Desviación Estándar: {std_length:.1f}',
+               transform=ax.transAxes, bbox=dict(facecolor='white', alpha=0.8))
+        ax.legend()
+        ax.grid(linestyle='--', alpha=0.7)
+        
+        plt.tight_layout()
+        
+        return fig
 
 
-def plot_precision_recall_curve(precision: Dict[str, np.ndarray], recall: Dict[str, np.ndarray],
-                              average_precision: Dict[str, float],
-                              title: str = 'Curva Precisión-Exhaustividad',
-                              figsize: Tuple[int, int] = (10, 8)) -> plt.Figure:
+def plot_ngram_frequency(texts: List[str], n: int = 2, top_n: int = 20,
+                        title: str = 'Frecuencia de N-gramas',
+                        figsize: Tuple[int, int] = (14, 8),
+                        interactive: bool = False) -> Union[plt.Figure, go.Figure]:
     """
-    Visualiza curvas de precisión-exhaustividad para clasificación multi-etiqueta.
+    Visualiza la frecuencia de n-gramas en los textos.
     
     Args:
-        precision: Diccionario con precisión por etiqueta.
-        recall: Diccionario con exhaustividad por etiqueta.
-        average_precision: Diccionario con precisión promedio por etiqueta.
-        title: Título del gráfico.
-        figsize: Tamaño de la figura.
+        texts: Lista de textos
+        n: Tamaño del n-grama (1 para unigramas, 2 para bigramas, etc.)
+        top_n: Número de n-gramas más frecuentes a mostrar
+        title: Título del gráfico
+        figsize: Tamaño de la figura
+        interactive: Si es True, genera una visualización interactiva con Plotly
         
     Returns:
-        Figura de matplotlib.
+        Figura de matplotlib o figura de Plotly (si interactive=True)
     """
-    fig, ax = plt.subplots(figsize=figsize)
+    # Preprocesar textos
+    processed_texts = []
+    for text in texts:
+        # Convertir a minúsculas y eliminar caracteres especiales
+        text = re.sub(r'[^\w\s]', '', text.lower())
+        # Dividir en palabras
+        words = text.split()
+        processed_texts.append(words)
     
-    # Graficar curva para cada etiqueta
-    for label, label_precision in precision.items():
-        if label == 'micro':
-            ax.plot(recall[label], precision[label],
-                   label=f'Micro-promedio (AP = {average_precision[label]:.2f})',
-                   color='deeppink', linestyle=':', linewidth=4)
-        elif label == 'macro':
-            ax.plot(recall[label], precision[label],
-                   label=f'Macro-promedio (AP = {average_precision[label]:.2f})',
-                   color='navy', linestyle=':', linewidth=4)
-        else:
-            ax.plot(recall[label], precision[label],
-                   label=f'{label} (AP = {average_precision[label]:.2f})')
+    # Extraer n-gramas
+    all_ngrams = []
+    for words in processed_texts:
+        all_ngrams.extend(list(ngrams(words, n)))
     
-    ax.set_xlim([0.0, 1.0])
-    ax.set_ylim([0.0, 1.05])
-    ax.set_xlabel('Exhaustividad')
-    ax.set_ylabel('Precisión')
-    ax.set_title(title)
-    ax.legend(loc='lower left')
-    plt.grid(True, alpha=0.3)
-    plt.tight_layout()
+    # Contar frecuencia
+    ngram_freq = Counter(all_ngrams)
     
-    return fig
+    # Obtener los n-gramas más frecuentes
+    top_ngrams = ngram_freq.most_common(top_n)
+    labels = [' '.join(ngram) for ngram, _ in top_ngrams]
+    values = [freq for _, freq in top_ngrams]
+    
+    if interactive:
+        # Versión interactiva con Plotly
+        fig = px.bar(
+            x=labels, y=values,
+            labels={'x': f'{n}-gramas', 'y': 'Frecuencia'},
+            title=title,
+            height=figsize[1]*80,
+            width=figsize[0]*80
+        )
+        
+        fig.update_layout(
+            xaxis_tickangle=-45,
+            template='plotly_white'
+        )
+        
+        return fig
+    else:
+        # Versión estática con Matplotlib
+        fig, ax = plt.subplots(figsize=figsize)
+        
+        # Crear gráfico de barras
+        ax.bar(labels, values)
+        
+        # Configurar gráfico
+        ax.set_title(title)
+        ax.set_xlabel(f'{n}-gramas')
+        ax.set_ylabel('Frecuencia')
+        ax.set_xticklabels(labels, rotation=45, ha='right')
+        ax.grid(axis='y', linestyle='--', alpha=0.7)
+        
+        plt.tight_layout()
+        
+        return fig
 
 
-def plot_prediction_distribution(y_true: np.ndarray, y_pred: np.ndarray,
-                               label_names: List[str],
-                               title: str = 'Distribución de Predicciones vs. Valores Reales',
-                               figsize: Tuple[int, int] = (12, 6)) -> plt.Figure:
+def plot_network_analysis(label_lists: List[List[str]], min_weight: int = 2,
+                         title: str = 'Red de Co-ocurrencia de Etiquetas',
+                         figsize: Tuple[int, int] = (12, 12),
+                         interactive: bool = False) -> Union[plt.Figure, go.Figure]:
     """
-    Compara la distribución de etiquetas reales y predichas.
+    Visualiza la red de co-ocurrencia de etiquetas.
     
     Args:
-        y_true: Matriz de etiquetas reales.
-        y_pred: Matriz de etiquetas predichas.
-        label_names: Nombres de las etiquetas.
-        title: Título del gráfico.
-        figsize: Tamaño de la figura.
+        label_lists: Lista de listas de etiquetas
+        min_weight: Peso mínimo para mostrar una conexión
+        title: Título del gráfico
+        figsize: Tamaño de la figura
+        interactive: Si es True, genera una visualización interactiva con Plotly
         
     Returns:
-        Figura de matplotlib.
+        Figura de matplotlib o figura de Plotly (si interactive=True)
     """
-    # Contar ocurrencias de cada etiqueta
-    true_counts = y_true.sum(axis=0)
-    pred_counts = y_pred.sum(axis=0)
+    # Crear grafo
+    G = nx.Graph()
     
-    # Crear DataFrame para facilitar la visualización
-    df = pd.DataFrame({
-        'Etiqueta': label_names * 2,
-        'Conteo': np.concatenate([true_counts, pred_counts]),
-        'Tipo': ['Real'] * len(label_names) + ['Predicción'] * len(label_names)
-    })
+    # Añadir nodos y aristas
+    for labels in label_lists:
+        # Añadir nodos
+        for label in labels:
+            if label not in G.nodes():
+                G.add_node(label)
+        
+        # Añadir aristas para cada par de etiquetas co-ocurrentes
+        for i, label1 in enumerate(labels):
+            for label2 in labels[i+1:]:
+                if G.has_edge(label1, label2):
+                    G[label1][label2]['weight'] += 1
+                else:
+                    G.add_edge(label1, label2, weight=1)
     
-    fig, ax = plt.subplots(figsize=figsize)
-    sns.barplot(x='Etiqueta', y='Conteo', hue='Tipo', data=df, ax=ax)
+    # Filtrar aristas por peso mínimo
+    edges_to_remove = [(u, v) for u, v, d in G.edges(data=True) if d['weight'] < min_weight]
+    G.remove_edges_from(edges_to_remove)
     
-    ax.set_title(title)
-    ax.set_xlabel('Categoría')
-    ax.set_ylabel('Número de Documentos')
-    plt.xticks(rotation=45)
-    plt.tight_layout()
+    # Eliminar nodos aislados
+    isolated_nodes = list(nx.isolates(G))
+    G.remove_nodes_from(isolated_nodes)
     
-    return fig
+    if len(G.nodes()) == 0:
+        print("No hay suficientes co-ocurrencias para visualizar la red.")
+        return None
+    
+    # Calcular layout
+    pos = nx.spring_layout(G, seed=42)
+    
+    # Obtener pesos de aristas
+    edge_weights = [G[u][v]['weight'] for u, v in G.edges()]
+    max_weight = max(edge_weights) if edge_weights else 1
+    normalized_weights = [w / max_weight for w in edge_weights]
+    
+    # Calcular centralidad de los nodos
+    centrality = nx.degree_centrality(G)
+    node_sizes = [centrality[node] * 1000 + 100 for node in G.nodes()]
+    
+    if interactive:
+        # Versión interactiva con Plotly
+        edge_x = []
+        edge_y = []
+        edge_trace = []
+        
+        # Crear trazas para aristas
+        for i, (u, v) in enumerate(G.edges()):
+            x0, y0 = pos[u]
+            x1, y1 = pos[v]
+            weight = G[u][v]['weight']
+            width = 1 + 4 * normalized_weights[i]
+            
+            edge_trace.append(go.Scatter(
+                x=[x0, x1, None],
+                y=[y0, y1, None],
+                line=dict(width=width, color='rgba(150,150,150,0.7)'),
+                hoverinfo='text',
+                text=f"{u} - {v}: {weight}",
+                mode='lines'
+            ))
+        
+        # Crear traza para nodos
+        node_x = []
+        node_y = []
+        for node in G.nodes():
+            x, y = pos[node]
+            node_x.append(x)
+            node_y.append(y)
+        
+        node_trace = go.Scatter(
+            x=node_x, y=node_y,
+            mode='markers+text',
+            text=list(G.nodes()),
+            textposition="top center",
+            marker=dict(
+                showscale=True,
+                colorscale='YlGnBu',
+                size=node_sizes,
+                color=list(centrality.values()),
+                colorbar=dict(
+                    thickness=15,
+                    title='Centralidad',
+                    xanchor='left',
+                    titleside='right'
+                ),
+                line=dict(width=2)
+            ),
+            hoverinfo='text',
+            hovertext=[f"{node}: {centrality[node]:.2f}" for node in G.nodes()]
+        )
+        
+        # Crear figura
+        fig = go.Figure(data=edge_trace + [node_trace])
+        
+        # Configurar diseño
+        fig.update_layout(
+            title=title,
+            showlegend=False,
+            hovermode='closest',
+            margin=dict(b=20, l=5, r=5, t=40),
+            xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+            yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+            height=figsize[0]*80,
+            width=figsize[1]*80
+        )
+        
+        return fig
+    else:
+        # Versión estática con Matplotlib
+        fig, ax = plt.subplots(figsize=figsize)
+        
+        # Dibujar aristas
+        nx.draw_networkx_edges(
+            G, pos, alpha=0.7,
+            width=[1 + 4 * w for w in normalized_weights],
+            edge_color='gray'
+        )
+        
+        # Dibujar nodos
+        nx.draw_networkx_nodes(
+            G, pos,
+            node_size=node_sizes,
+            node_color=list(centrality.values()),
+            cmap=plt.cm.YlGnBu,
+            alpha=0.8
+        )
+        
+        # Añadir etiquetas
+        nx.draw_networkx_labels(
+            G, pos,
+            font_size=10,
+            font_family='sans-serif'
+        )
+        
+        # Configurar gráfico
+        ax.set_title(title)
+        ax.axis('off')
+        
+        # Añadir barra de color para centralidad
+        sm = plt.cm.ScalarMappable(cmap=plt.cm.YlGnBu, norm=plt.Normalize(vmin=0, vmax=max(centrality.values())))
+        sm.set_array([])
+        cbar = plt.colorbar(sm, ax=ax)
+        cbar.set_label('Centralidad')
+        
+        plt.tight_layout()
+        
+        return fig
 
 
-def plot_multilabel_counts(y: np.ndarray, title: str = 'Distribución de Número de Etiquetas por Documento',
-                         figsize: Tuple[int, int] = (10, 6)) -> plt.Figure:
+def plot_error_analysis(y_true: np.ndarray, y_pred: np.ndarray, 
+                       categories: List[str] = None,
+                       title: str = 'Análisis de Errores por Categoría',
+                       figsize: Tuple[int, int] = (14, 8),
+                       interactive: bool = False) -> Union[plt.Figure, go.Figure]:
     """
-    Visualiza la distribución del número de etiquetas por documento.
+    Visualiza el análisis de errores por categoría.
     
     Args:
-        y: Matriz de etiquetas.
-        title: Título del gráfico.
-        figsize: Tamaño de la figura.
+        y_true: Etiquetas verdaderas (one-hot encoding)
+        y_pred: Etiquetas predichas (one-hot encoding)
+        categories: Nombres de las categorías
+        title: Título del gráfico
+        figsize: Tamaño de la figura
+        interactive: Si es True, genera una visualización interactiva con Plotly
         
     Returns:
-        Figura de matplotlib.
+        Figura de matplotlib o figura de Plotly (si interactive=True)
     """
-    # Contar número de etiquetas por documento
-    label_counts = y.sum(axis=1)
+    if categories is None:
+        categories = [f"Categoría {i}" for i in range(y_true.shape[1])]
     
-    # Contar frecuencia de cada número de etiquetas
-    count_distribution = np.bincount(label_counts.astype(int))
+    # Calcular falsos positivos y falsos negativos por categoría
+    false_positives = []
+    false_negatives = []
     
-    # Crear índices para el gráfico
-    indices = np.arange(len(count_distribution))
+    for i in range(y_true.shape[1]):
+        fp = np.sum((y_true[:, i] == 0) & (y_pred[:, i] == 1))
+        fn = np.sum((y_true[:, i] == 1) & (y_pred[:, i] == 0))
+        false_positives.append(fp)
+        false_negatives.append(fn)
     
-    fig, ax = plt.subplots(figsize=figsize)
-    bars = ax.bar(indices, count_distribution, color=sns.color_palette('viridis', len(count_distribution)))
-    
-    # Añadir etiquetas con valores
-    for bar in bars:
-        height = bar.get_height()
-        if height > 0:  # Solo mostrar etiquetas para barras con altura > 0
-            ax.text(bar.get_x() + bar.get_width()/2., height + 0.5,
-                    f'{int(height)}', ha='center', va='bottom', fontsize=10)
-    
-    ax.set_xlabel('Número de Etiquetas')
-    ax.set_ylabel('Número de Documentos')
-    ax.set_title(title)
-    ax.set_xticks(indices)
-    plt.tight_layout()
-    
-    return fig
+    if interactive:
+        # Versión interactiva con Plotly
+        fig = go.Figure()
+        
+        # Añadir barras para falsos positivos
+        fig.add_trace(go.Bar(
+            x=categories,
+            y=false_positives,
+            name='Falsos Positivos',
+            marker_color='indianred'
+        ))
+        
+        # Añadir barras para falsos negativos
+        fig.add_trace(go.Bar(
+            x=categories,
+            y=false_negatives,
+            name='Falsos Negativos',
+            marker_color='royalblue'
+        ))
+        
+        # Configurar diseño
+        fig.update_layout(
+            title=title,
+            xaxis_title='Categoría',
+            yaxis_title='Número de Errores',
+            barmode='group',
+            template='plotly_white',
+            height=figsize[1]*80,
+            width=figsize[0]*80
+        )
+        
+        # Rotar etiquetas si hay muchas categorías
+        if len(categories) > 10:
+            fig.update_layout(xaxis_tickangle=-45)
+        
+        return fig
+    else:
+        # Versión estática con Matplotlib
+        fig, ax = plt.subplots(figsize=figsize)
+        
+        # Configurar posiciones de barras
+        x = np.arange(len(categories))
+        width = 0.35
+        
+        # Crear barras
+        ax.bar(x - width/2, false_positives, width, label='Falsos Positivos', color='indianred')
+        ax.bar(x + width/2, false_negatives, width, label='Falsos Negativos', color='royalblue')
+        
+        # Configurar gráfico
+        ax.set_title(title)
+        ax.set_xlabel('Categoría')
+        ax.set_ylabel('Número de Errores')
+        ax.set_xticks(x)
+        ax.set_xticklabels(categories, rotation=45, ha='right')
+        ax.legend()
+        ax.grid(axis='y', linestyle='--', alpha=0.7)
+        
+        plt.tight_layout()
+        
+        return fig
 
 
-def save_figures(figures: Dict[str, plt.Figure], output_dir: str) -> None:
+def save_figures(figures: Dict[str, plt.Figure], output_dir: str = 'reports/figures'):
     """
-    Guarda múltiples figuras en un directorio.
+    Guarda un conjunto de figuras en el directorio especificado.
     
     Args:
-        figures: Diccionario con nombres y figuras.
-        output_dir: Directorio de salida.
+        figures: Diccionario de figuras {nombre: figura}
+        output_dir: Directorio de salida
     """
     # Crear directorio si no existe
     os.makedirs(output_dir, exist_ok=True)
@@ -529,70 +1132,27 @@ def load_results(results_path: str) -> Dict[str, Any]:
     Carga resultados de evaluación desde un archivo pickle.
     
     Args:
-        results_path: Ruta al archivo de resultados.
+        results_path: Ruta al archivo pickle con los resultados.
         
     Returns:
-        Diccionario con resultados.
+        Dict con los resultados cargados.
     """
     with open(results_path, 'rb') as f:
         results = pickle.load(f)
     return results
 
 
-def main():
+def save_results(results: Dict[str, Any], output_path: str):
     """
-    Función principal para ejecutar visualizaciones desde la línea de comandos.
+    Guarda resultados de evaluación en un archivo pickle.
+    
+    Args:
+        results: Diccionario con resultados
+        output_path: Ruta de salida para el archivo pickle
     """
-    import argparse
+    # Crear directorio si no existe
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
     
-    parser = argparse.ArgumentParser(description='Generar visualizaciones para resultados de clasificación')
-    parser.add_argument('--results', type=str, required=True, help='Ruta al archivo de resultados')
-    parser.add_argument('--output-dir', type=str, required=True, help='Directorio para guardar visualizaciones')
-    parser.add_argument('--model-name', type=str, default='model', help='Nombre del modelo para etiquetas')
-    
-    args = parser.parse_args()
-    
-    # Cargar resultados
-    print(f"Cargando resultados desde {args.results}...")
-    results = load_results(args.results)
-    
-    # Extraer métricas y datos necesarios
-    metrics = results['metrics']
-    per_label_metrics = results.get('per_label_metrics', {})
-    confusion_matrices = results.get('confusion_matrices', {})
-    y_pred = results.get('y_pred', None)
-    
-    # Nombres de etiquetas
-    label_names = list(per_label_metrics.keys()) if per_label_metrics else ['Label 1', 'Label 2', 'Label 3', 'Label 4']
-    
-    # Crear figuras
-    figures = {}
-    
-    # Métricas generales
-    figures['metrics_radar'] = plot_metrics_radar(metrics, title=f'Métricas del Modelo {args.model_name}')
-    
-    # Métricas por etiqueta
-    if per_label_metrics:
-        figures['per_label_f1'] = plot_per_label_metrics(per_label_metrics, metric_name='f1',
-                                                       title=f'F1-Score por Categoría - {args.model_name}')
-        figures['per_label_precision'] = plot_per_label_metrics(per_label_metrics, metric_name='precision',
-                                                             title=f'Precisión por Categoría - {args.model_name}')
-        figures['per_label_recall'] = plot_per_label_metrics(per_label_metrics, metric_name='recall',
-                                                          title=f'Exhaustividad por Categoría - {args.model_name}')
-    
-    # Matrices de confusión
-    for label, cm in confusion_matrices.items():
-        figures[f'confusion_matrix_{label}'] = plot_confusion_matrix(
-            cm, classes=['Negativo', 'Positivo'],
-            title=f'Matriz de Confusión - {label} - {args.model_name}'
-        )
-    
-    # Guardar figuras
-    print(f"Guardando {len(figures)} visualizaciones en {args.output_dir}...")
-    save_figures(figures, args.output_dir)
-    
-    print("¡Visualizaciones generadas con éxito!")
-
-
-if __name__ == "__main__":
-    main()
+    # Guardar resultados
+    with open(output_path, 'wb') as f:
+        pickle.dump(results, f)

@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clasificador de Literatura Médica</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --tech-primary: #0056b3;
+            --tech-secondary: #00a0e3;
+            --tech-accent: #ff6b00;
+            --tech-dark: #1a1a1a;
+            --tech-light: #f8f9fa;
+        }
+        
+        body {
+            padding-top: 2rem;
+            background-color: var(--tech-light);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: var(--tech-dark);
+        }
+        
+        .card {
+            margin-bottom: 1.5rem;
+            box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.1);
+            border: none;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        .card-header {
+            background: linear-gradient(135deg, var(--tech-primary), var(--tech-secondary));
+            border: none;
+            padding: 1.25rem;
+        }
+        
+        .result-card {
+            display: none;
+        }
+        
+        .category-badge {
+            font-size: 1rem;
+            margin-right: 0.5rem;
+            margin-bottom: 0.5rem;
+            background-color: var(--tech-accent) !important;
+            padding: 0.5rem 1rem;
+            border-radius: 30px;
+        }
+        
+        .progress {
+            height: 1.5rem;
+            margin-bottom: 1rem;
+            border-radius: 30px;
+            background-color: #e9ecef;
+        }
+        
+        .progress-bar {
+            font-size: 0.875rem;
+            line-height: 1.5rem;
+            background: linear-gradient(90deg, var(--tech-primary), var(--tech-secondary));
+        }
+        
+        .loading {
+            display: none;
+        }
+        
+        .btn {
+            border-radius: 30px;
+            padding: 0.5rem 1.5rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, var(--tech-primary), var(--tech-secondary));
+            border: none;
+        }
+        
+        .btn-primary:hover {
+            background: linear-gradient(135deg, var(--tech-secondary), var(--tech-primary));
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 86, 179, 0.3);
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, var(--tech-accent), #ff9d00);
+            border: none;
+        }
+        
+        .btn-success:hover {
+            background: linear-gradient(135deg, #ff9d00, var(--tech-accent));
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(255, 107, 0, 0.3);
+        }
+        
+        .form-control, .form-select {
+            border-radius: 10px;
+            padding: 0.75rem 1rem;
+            border: 1px solid #ced4da;
+        }
+        
+        .form-control:focus, .form-select:focus {
+            border-color: var(--tech-secondary);
+            box-shadow: 0 0 0 0.25rem rgba(0, 160, 227, 0.25);
+        }
+    </style>
+</head>
+<body>
+    <header class="py-3 mb-4" style="background: linear-gradient(135deg, var(--tech-primary), var(--tech-secondary));">
+        <div class="container">
+            <div class="d-flex align-items-center justify-content-center">
+                <h1 class="text-white fw-bold mb-0">TECH SPHERE 2025</h1>
+            </div>
+        </div>
+    </header>
+    
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-10">
+                <div class="card">
+                    <div class="card-header text-white">
+                        <h2 class="mb-0">Clasificador de Literatura Médica</h2>
+                        <p class="mb-0 mt-2">AI + Data Challenge</p>
+                    </div>
+                    <div class="card-body">
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <form id="modelForm">
+                                    <div class="mb-3">
+                                        <label for="modelSelect" class="form-label">Seleccionar Modelo:</label>
+                                        <select class="form-select" id="modelSelect" name="model">
+                                            {% for model in models %}
+                                            <option value="{{ model }}" {% if model == current_model %}selected{% endif %}>{{ model }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <button type="submit" class="btn" style="background: linear-gradient(135deg, var(--tech-primary), var(--tech-secondary)); color: white;">Cargar Modelo</button>
+                                </form>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="alert alert-info">
+                                    <p><strong>Modelo actual:</strong> <span id="currentModel">{{ current_model if current_model else 'Ninguno' }}</span></p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <hr>
+                        
+                        <form id="predictionForm">
+                            <div class="mb-3">
+                                <label for="title" class="form-label">Título del Artículo:</label>
+                                <input type="text" class="form-control" id="title" name="title" placeholder="Ingrese el título del artículo médico">
+                            </div>
+                            <div class="mb-3">
+                                <label for="abstract" class="form-label">Resumen:</label>
+                                <textarea class="form-control" id="abstract" name="abstract" rows="6" placeholder="Ingrese el resumen o contenido del artículo médico"></textarea>
+                            </div>
+                            <button type="submit" class="btn" style="background: linear-gradient(135deg, var(--tech-accent), #ff9d00); color: white;">Clasificar</button>
+                            <div class="loading mt-3">
+                                <div class="d-flex align-items-center">
+                                    <div class="spinner-border text-primary me-2" role="status">
+                                        <span class="visually-hidden">Cargando...</span>
+                                    </div>
+                                    <span>Procesando...</span>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                
+                <div class="card result-card" id="resultCard">
+                    <div class="card-header text-white">
+                        <h3 class="mb-0">Resultados de la Clasificación</h3>
+                    </div>
+                    <div class="card-body">
+                        <h4>Categorías Detectadas:</h4>
+                        <div id="categories" class="mb-4"></div>
+                        
+                        <h4>Probabilidades por Categoría:</h4>
+                        <div id="probabilities"></div>
+                    </div>
+                </div>
+                
+                <div class="card mt-4">
+                    <div class="card-header text-white">
+                        <h3 class="mb-0">Ejemplos de Textos</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="accordion" id="examplesAccordion">
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#example1" aria-expanded="false">
+                                        Ejemplo 1: Cardiovascular
+                                    </button>
+                                </h2>
+                                <div id="example1" class="accordion-collapse collapse" data-bs-parent="#examplesAccordion">
+                                    <div class="accordion-body">
+                                        <button class="btn btn-sm mb-2 use-example" style="background: linear-gradient(135deg, var(--tech-primary), var(--tech-secondary)); color: white;" data-example="1">Usar este ejemplo</button>
+                                        <p><strong>Título:</strong> Avances en el tratamiento de la insuficiencia cardíaca</p>
+                                        <p><strong>Resumen:</strong> La insuficiencia cardíaca sigue siendo una causa importante de morbilidad y mortalidad en todo el mundo. Este estudio revisa los avances recientes en el tratamiento farmacológico, incluyendo los inhibidores de la enzima convertidora de angiotensina, los bloqueadores beta y los antagonistas de los receptores de mineralocorticoides. También se discuten las terapias emergentes como los inhibidores del cotransportador de sodio-glucosa tipo 2 (SGLT2) que han mostrado resultados prometedores en ensayos clínicos recientes.</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#example2" aria-expanded="false">
+                                        Ejemplo 2: Hepatorenal
+                                    </button>
+                                </h2>
+                                <div id="example2" class="accordion-collapse collapse" data-bs-parent="#examplesAccordion">
+                                    <div class="accordion-body">
+                                        <button class="btn btn-sm mb-2 use-example" style="background: linear-gradient(135deg, var(--tech-primary), var(--tech-secondary)); color: white;" data-example="2">Usar este ejemplo</button>
+                                        <p><strong>Título:</strong> Síndrome hepatorrenal: diagnóstico y manejo</p>
+                                        <p><strong>Resumen:</strong> El síndrome hepatorrenal es una complicación grave de la cirrosis hepática avanzada caracterizada por insuficiencia renal funcional sin patología renal intrínseca. Este artículo revisa los criterios diagnósticos actualizados y las estrategias de manejo, incluyendo el uso de vasoconstrictores como la terlipresina, albúmina y sistemas de soporte hepático artificial. También se discute el papel del trasplante hepático como tratamiento definitivo y los factores pronósticos que influyen en la supervivencia de estos pacientes.</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#example3" aria-expanded="false">
+                                        Ejemplo 3: Neurológico
+                                    </button>
+                                </h2>
+                                <div id="example3" class="accordion-collapse collapse" data-bs-parent="#examplesAccordion">
+                                    <div class="accordion-body">
+                                        <button class="btn btn-sm mb-2 use-example" style="background: linear-gradient(135deg, var(--tech-primary), var(--tech-secondary)); color: white;" data-example="3">Usar este ejemplo</button>
+                                        <p><strong>Título:</strong> Nuevos enfoques en el tratamiento de la enfermedad de Parkinson</p>
+                                        <p><strong>Resumen:</strong> La enfermedad de Parkinson es un trastorno neurodegenerativo progresivo que afecta principalmente al sistema motor. Este estudio examina las terapias emergentes, incluyendo nuevos agonistas dopaminérgicos, inhibidores de la monoamino oxidasa B y terapias de estimulación cerebral profunda. También se discuten los avances en la comprensión de los mecanismos moleculares subyacentes y cómo estos conocimientos están conduciendo al desarrollo de terapias modificadoras de la enfermedad dirigidas a la alfa-sinucleína y otros objetivos patogénicos clave.</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#example4" aria-expanded="false">
+                                        Ejemplo 4: Oncológico
+                                    </button>
+                                </h2>
+                                <div id="example4" class="accordion-collapse collapse" data-bs-parent="#examplesAccordion">
+                                    <div class="accordion-body">
+                                        <button class="btn btn-sm mb-2 use-example" style="background: linear-gradient(135deg, var(--tech-primary), var(--tech-secondary)); color: white;" data-example="4">Usar este ejemplo</button>
+                                        <p><strong>Título:</strong> Inmunoterapia en el tratamiento del melanoma metastásico</p>
+                                        <p><strong>Resumen:</strong> El melanoma metastásico ha sido históricamente resistente a las terapias convencionales. Este artículo revisa el impacto revolucionario de los inhibidores de puntos de control inmunitario, como los anticuerpos anti-PD-1 y anti-CTLA-4, en el tratamiento del melanoma avanzado. Se discuten los resultados de ensayos clínicos recientes, los factores predictivos de respuesta, los efectos adversos relacionados con el sistema inmunitario y las estrategias de combinación que están mejorando significativamente la supervivencia de los pacientes con esta enfermedad agresiva.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const modelForm = document.getElementById('modelForm');
+            const predictionForm = document.getElementById('predictionForm');
+            const resultCard = document.getElementById('resultCard');
+            const categoriesDiv = document.getElementById('categories');
+            const probabilitiesDiv = document.getElementById('probabilities');
+            const currentModelSpan = document.getElementById('currentModel');
+            const loadingDiv = document.querySelector('.loading');
+            
+            // Ejemplos predefinidos
+            const examples = {
+                1: {
+                    title: "Avances en el tratamiento de la insuficiencia cardíaca",
+                    abstract: "La insuficiencia cardíaca sigue siendo una causa importante de morbilidad y mortalidad en todo el mundo. Este estudio revisa los avances recientes en el tratamiento farmacológico, incluyendo los inhibidores de la enzima convertidora de angiotensina, los bloqueadores beta y los antagonistas de los receptores de mineralocorticoides. También se discuten las terapias emergentes como los inhibidores del cotransportador de sodio-glucosa tipo 2 (SGLT2) que han mostrado resultados prometedores en ensayos clínicos recientes."
+                },
+                2: {
+                    title: "Síndrome hepatorrenal: diagnóstico y manejo",
+                    abstract: "El síndrome hepatorrenal es una complicación grave de la cirrosis hepática avanzada caracterizada por insuficiencia renal funcional sin patología renal intrínseca. Este artículo revisa los criterios diagnósticos actualizados y las estrategias de manejo, incluyendo el uso de vasoconstrictores como la terlipresina, albúmina y sistemas de soporte hepático artificial. También se discute el papel del trasplante hepático como tratamiento definitivo y los factores pronósticos que influyen en la supervivencia de estos pacientes."
+                },
+                3: {
+                    title: "Nuevos enfoques en el tratamiento de la enfermedad de Parkinson",
+                    abstract: "La enfermedad de Parkinson es un trastorno neurodegenerativo progresivo que afecta principalmente al sistema motor. Este estudio examina las terapias emergentes, incluyendo nuevos agonistas dopaminérgicos, inhibidores de la monoamino oxidasa B y terapias de estimulación cerebral profunda. También se discuten los avances en la comprensión de los mecanismos moleculares subyacentes y cómo estos conocimientos están conduciendo al desarrollo de terapias modificadoras de la enfermedad dirigidas a la alfa-sinucleína y otros objetivos patogénicos clave."
+                },
+                4: {
+                    title: "Inmunoterapia en el tratamiento del melanoma metastásico",
+                    abstract: "El melanoma metastásico ha sido históricamente resistente a las terapias convencionales. Este artículo revisa el impacto revolucionario de los inhibidores de puntos de control inmunitario, como los anticuerpos anti-PD-1 y anti-CTLA-4, en el tratamiento del melanoma avanzado. Se discuten los resultados de ensayos clínicos recientes, los factores predictivos de respuesta, los efectos adversos relacionados con el sistema inmunitario y las estrategias de combinación que están mejorando significativamente la supervivencia de los pacientes con esta enfermedad agresiva."
+                }
+            };
+            
+            // Cargar modelo
+            modelForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const formData = new FormData(modelForm);
+                
+                fetch('/load_model', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        currentModelSpan.textContent = data.model;
+                        alert('Modelo cargado correctamente: ' + data.model);
+                    } else {
+                        alert('Error: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error al cargar el modelo');
+                });
+            });
+            
+            // Realizar predicción
+            predictionForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const formData = new FormData(predictionForm);
+                
+                // Mostrar indicador de carga
+                loadingDiv.style.display = 'block';
+                resultCard.style.display = 'none';
+                
+                fetch('/predict', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Ocultar indicador de carga
+                    loadingDiv.style.display = 'none';
+                    
+                    if (data.success) {
+                        // Mostrar resultados
+                        resultCard.style.display = 'block';
+                        
+                        // Mostrar categorías
+                        categoriesDiv.innerHTML = '';
+                        if (data.categories.length > 0) {
+                            data.categories.forEach(category => {
+                                const badge = document.createElement('span');
+                                badge.className = 'badge category-badge';
+                                badge.textContent = category;
+                                categoriesDiv.appendChild(badge);
+                            });
+                        } else {
+                            categoriesDiv.innerHTML = '<p>No se detectaron categorías.</p>';
+                        }
+                        
+                        // Mostrar probabilidades
+                        probabilitiesDiv.innerHTML = '';
+                        const categories = Object.keys(data.probabilities);
+                        categories.forEach(category => {
+                            const probability = data.probabilities[category];
+                            const percentage = Math.round(probability * 100);
+                            
+                            const progressContainer = document.createElement('div');
+                            progressContainer.innerHTML = `
+                                <p class="mb-1">${category}</p>
+                                <div class="progress">
+                                    <div class="progress-bar" 
+                                         role="progressbar" 
+                                         style="width: ${percentage}%; background: linear-gradient(90deg, var(--tech-primary), var(--tech-secondary));" 
+                                         aria-valuenow="${percentage}" 
+                                         aria-valuemin="0" 
+                                         aria-valuemax="100">
+                                        ${percentage}%
+                                    </div>
+                                </div>
+                            `;
+                            probabilitiesDiv.appendChild(progressContainer);
+                        });
+                    } else {
+                        alert('Error: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    loadingDiv.style.display = 'none';
+                    console.error('Error:', error);
+                    alert('Error al realizar la predicción');
+                });
+            });
+            
+            // Usar ejemplos predefinidos
+            document.querySelectorAll('.use-example').forEach(button => {
+                button.addEventListener('click', function() {
+                    const exampleId = this.getAttribute('data-example');
+                    const example = examples[exampleId];
+                    
+                    document.getElementById('title').value = example.title;
+                    document.getElementById('abstract').value = example.abstract;
+                    
+                    // Cerrar el acordeón
+                    const bsCollapse = bootstrap.Collapse.getInstance(this.closest('.accordion-collapse'));
+                    if (bsCollapse) {
+                        bsCollapse.hide();
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>

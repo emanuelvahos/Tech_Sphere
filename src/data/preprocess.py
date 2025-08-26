@@ -125,6 +125,29 @@ def lemmatize_tokens(tokens: List[str]) -> List[str]:
     return [lemmatizer.lemmatize(word) for word in tokens]
 
 
+def lemmatize_text(text: str) -> str:
+    """
+    Aplica lematización a un texto completo.
+    
+    Args:
+        text: Texto a lematizar.
+        
+    Returns:
+        Texto con lematización aplicada.
+    """
+    # Limpiar el texto
+    clean = clean_text(text)
+    
+    # Tokenizar
+    tokens = word_tokenize(clean)
+    
+    # Lematizar tokens
+    lemmatized_tokens = lemmatize_tokens(tokens)
+    
+    # Unir tokens en un texto
+    return ' '.join(lemmatized_tokens)
+
+
 def tokenize_text(text: str, remove_stop: bool = True, stem: bool = False, 
                  lemmatize: bool = True, lang: str = 'english',
                  custom_stopwords: Optional[List[str]] = None) -> List[str]:
