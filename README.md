@@ -1,9 +1,9 @@
 # Clasificación de Literatura Médica
 
-[![Python Tests](https://github.com/tu-usuario/Tech_Sphere/actions/workflows/python-tests.yml/badge.svg)](https://github.com/tu-usuario/Tech_Sphere/actions/workflows/python-tests.yml)
-[![codecov](https://codecov.io/gh/tu-usuario/Tech_Sphere/branch/main/graph/badge.svg)](https://codecov.io/gh/tu-usuario/Tech_Sphere)
+[![Python Tests](https://github.com/emanuelvahos/Tech_Sphere/actions/workflows/python-tests.yml/badge.svg)](https://github.com/emanuelvahos/Tech_Sphere/actions/workflows/python-tests.yml)
+[![codecov](https://codecov.io/gh/emanuelvahos/Tech_Sphere/branch/main/graph/badge.svg)](https://codecov.io/gh/emanuelvahos/Tech_Sphere)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/github/v/release/tu-usuario/Tech_Sphere?include_prereleases&sort=semver)](https://github.com/tu-usuario/Tech_Sphere/releases)
+[![Version](https://img.shields.io/github/v/release/emanuelvahos/Tech_Sphere?include_prereleases&sort=semver)](https://github.com/emanuelvahos/Tech_Sphere/releases)
 
 ## Descripción del Proyecto
 Este proyecto implementa un sistema de clasificación multi-etiqueta para literatura médica, capaz de categorizar artículos científicos en diferentes dominios médicos basándose en su título y resumen. El sistema está diseñado para el AI + Data Challenge, con el objetivo de clasificar textos médicos en una o más categorías de forma precisa y eficiente.
@@ -58,7 +58,7 @@ El conjunto de datos contiene 3,565 registros y presenta un desafío de clasific
 
 ```bash
 # Clonar el repositorio
-git clone https://github.com/tu-usuario/Tech_Sphere.git
+git clone https://github.com/emanuelvahos/Tech_Sphere.git
 cd Tech_Sphere
 
 # Crear entorno virtual e instalar dependencias

@@ -69,7 +69,7 @@ El script `evaluate_model.py` permite evaluar el rendimiento de los modelos con 
 3. Ejecuta el script:
 
 ```bash
-python src/models/evaluate_model.py --model models/tu_modelo.pkl --data data/tu_dataset.csv
+python src/models/evaluate_model.py --model models/svm_model.pkl --data data/processed/test_data.csv
 ```
 
 Si no especificas los parámetros `--model` y `--data`, el script te permitirá seleccionar un modelo de la lista disponible y utilizará el conjunto de datos de prueba por defecto.

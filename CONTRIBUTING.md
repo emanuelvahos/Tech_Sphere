@@ -8,7 +8,7 @@
 
 1. Clona el repositorio:
    ```bash
-   git clone https://github.com/tu-usuario/Tech_Sphere.git
+   git clone https://github.com/emanuelvahos/Tech_Sphere.git
    cd Tech_Sphere
    ```
 
